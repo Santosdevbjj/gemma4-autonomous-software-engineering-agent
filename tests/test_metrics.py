@@ -31,3 +31,18 @@ def test_duplicate_prediction_ids_are_rejected(tmp_path):
     path.write_text(json.dumps(row) + "\n" + json.dumps(row), encoding="utf-8")
     with pytest.raises(ValueError, match="Duplicate"):
         score_predictions(path)
+def test_score_predictions_accepts_instance_id_and_rejects_missing_identifier(tmp_path):
+    valid = tmp_path / "valid.jsonl"
+    valid.write_text(
+        json.dumps({"instance_id": "task_1", "repo": "psf/requests", "prediction": ""}) + "\n",
+        encoding="utf-8",
+    )
+    summary = score_predictions(valid)
+    assert summary["unique_ids"] == 1
+    assert summary["no_patch"] == 1
+    assert summary["repository_counts"] == {"psf/requests": 1}
+
+    missing = tmp_path / "missing.jsonl"
+    missing.write_text(json.dumps({"prediction": "diff"}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="id or instance_id"):
+        score_predictions(missing)

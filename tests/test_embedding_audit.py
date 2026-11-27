@@ -16,3 +16,14 @@ def test_embedding_audit_reads_npy_shape_without_numpy(tmp_path):
     result = _inspect_embeddings(directory)
     assert result["shape_counts"] == {"(256,)": 1}
     assert result["malformed_files"] == 0
+def test_embedding_audit_counts_malformed_npz(tmp_path):
+    directory = tmp_path / "embeddings"
+    directory.mkdir()
+    (directory / "corrupt.npz").write_bytes(b"not a zip archive")
+    with zipfile.ZipFile(directory / "bad_magic.npz", "w") as archive:
+        archive.writestr("broken.npy", b"BAD_MAGIC_HEADER")
+
+    result = _inspect_embeddings(directory)
+    assert result["files"] == 2
+    assert result["malformed_files"] == 2
+    assert result["array_entries"] == 1

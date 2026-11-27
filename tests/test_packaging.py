@@ -52,3 +52,20 @@ def test_archive_rejects_missing_include(tmp_path):
     )
     with pytest.raises(ValueError, match="Missing !include"):
         build_archive(source, tmp_path / "submission.zip")
+def test_archive_skips_denied_directories_and_rejects_denied_suffixes(tmp_path):
+    source = tmp_path / "submission"
+    source.mkdir()
+    (source / "agent.yaml").write_text("name: example\n", encoding="utf-8")
+    (source / "__pycache__").mkdir()
+    (source / "__pycache__" / "cached.pyc").write_bytes(b"0000")
+    (source / "data").mkdir()
+    (source / "data" / "secret.jsonl").write_text("{}", encoding="utf-8")
+
+    target = tmp_path / "out" / "submission.zip"
+    build_archive(source, target)
+    with zipfile.ZipFile(target) as archive:
+        assert archive.namelist() == ["agent.yaml"]
+
+    (source / "private.key").write_text("PRIVATE KEY", encoding="utf-8")
+    with pytest.raises(ValueError, match="Sensitive"):
+        build_archive(source, target)
