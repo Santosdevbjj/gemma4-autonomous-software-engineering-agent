@@ -1,0 +1,12 @@
+# Optional ADK config. Validate subagent/AgentTool wiring against the official
+# competition sample before including this file in an actual submission.
+agent_class: LlmAgent
+name: code_analyzer
+model: gemma-4-31b-it-qat-w4a16-ct
+description: Read-only localization of likely code symbols.
+instruction: !include ../prompts/code_analyzer.md
+tools:
+  - name: search_similar_code
+  - name: get_code_neighbors
+  - name: get_code_subgraph
+  - name: read_file

@@ -1,0 +1,22 @@
+name: replace-with-unique-run-name
+status: planned
+created_utc: null
+code_revision: null
+model_id: null
+adapter_revision: null
+dataset_split: public-development-only
+task_ids: []
+prompt_revision: null
+tools_revision: null
+hardware: null
+runtime: null
+seed: 17
+budget_seconds: null
+metrics:
+  attempted: null
+  passed: null
+  failed: null
+  timeout: null
+  infrastructure_error: null
+  mean_seconds_per_task: null
+notes: "Do not fill with estimates; record measured values only."

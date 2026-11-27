@@ -1,0 +1,5 @@
+# Starter values only. Validate field names against the Kaggle sample.
+temperature: 0.1
+top_p: 0.9
+top_k: 40
+max_output_tokens: 4096

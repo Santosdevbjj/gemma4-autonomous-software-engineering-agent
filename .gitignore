@@ -1,0 +1,59 @@
+# Ambientes virtuais e caches Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+
+# PyCharm / IDEs locais
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Build, empacotamento e logs locais
+build/
+dist/
+*.egg-info/
+logs/
+*.log
+
+# Dados da competição, snapshots e arquivos sensíveis
+data/competition/
+data/private/
+kaggle.json
+credentials.json
+*.pem
+*.key
+.ipynb_checkpoints/
+.env
+.env.*
+!.env.example
+
+# Pesos, checkpoints e experimentos locais
+adapters/*/
+!adapters/.gitkeep
+submission/adapters/*/
+!submission/adapters/.gitkeep
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.gguf
+checkpoints/
+wandb/
+mlruns/
+
+# Artefatos de submissão e relatórios locais
+submission.zip
+submission.parquet
+benchmarks/local_eval/*.jsonl
+benchmarks/reports/*.local.json

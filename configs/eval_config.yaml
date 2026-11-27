@@ -1,0 +1,4 @@
+# Optional; confirm the harness consumes these names before relying on them.
+max_total_hours: 12
+per_task_timeout_seconds: null
+max_tool_calls_per_task: 32
