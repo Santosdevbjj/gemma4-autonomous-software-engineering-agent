@@ -118,3 +118,12 @@ Não traduza taxa de aprovação em ROI sem medir tempo humano, custo de GPU, re
 ## Licença e dados
 
 O código original deste repositório está sob Apache-2.0. Isso não relicencia dados, pesos ou componentes de terceiros. Não adicione snapshots, grafos, embeddings, wheels, patches, chaves ou credenciais ao Git. Consulte as regras antes de compartilhar artefatos.
+
+
+---
+
+**Autor:** Sérgio Santos — Cientista de Dados | Ambientes Críticos e Governança de Dados
+
+[![Portfólio Sérgio Santos](https://img.shields.io/badge/Portfólio-Sérgio_Santos-111827?style=for-the-badge&logo=githubpages&logoColor=00eaff)](https://portfoliosantossergio.vercel.app)
+[![LinkedIn Sérgio Santos](https://img.shields.io/badge/LinkedIn-Sérgio_Santos-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/santossergioluiz)
+
