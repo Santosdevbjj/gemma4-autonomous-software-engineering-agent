@@ -22,7 +22,6 @@ A pergunta que este projeto investiga: **um agente local, com orçamento de temp
 - **Dados públicos de desenvolvimento:** 129 tarefas de quatro repositórios (FastAPI, Rich, Requests e HTTPX), com snapshots, grafos de chamadas/dependências (AST) e embeddings de código.
 - **Ferramentas do harness:** `run_command`, `read_file`, `edit_file`, `write_file`, `submit_patch`, `get_status` e três ferramentas de grafo (`get_code_neighbors`, `search_similar_code`, `get_code_subgraph`).
 - **Restrições:** sem internet no sandbox, um único modelo Gemma 4 suportado por submissão, adaptadores LoRA opcionais e limite global de 12 horas para todas as tarefas.
-- **Prazo final da competição:** 02/12/2026, 23:59 UTC. As regras e o `HARNESS_README.md` oficiais prevalecem sobre qualquer informação deste repositório.
 
 ## 3. Objetivo do projeto
 
