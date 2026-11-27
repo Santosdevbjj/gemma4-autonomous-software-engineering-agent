@@ -1,12 +1,18 @@
-# Optional experiment. Do not activate until AgentTool wiring is checked against
-# the competition's released sample and the included prompt path is verified.
 agent_class: LlmAgent
 name: code_analyzer
 model: gemma-4-31b-it-qat-w4a16-ct
-description: Read-only localization of likely code symbols.
-instruction: !include code_analyzer.md
+description: Read-only localization of likely code symbols, callers, callees, and target file line ranges.
+instruction: !include ../prompts/code_analyzer.md
+generate_content_config:
+  temperature: 0.1
+  top_p: 0.9
+  top_k: 40
+  max_output_tokens: 4096
+  thinking_config:
+    include_thoughts: false
+    thinking_budget: 1024
 tools:
-  - name: search_similar_code
-  - name: get_code_neighbors
-  - name: get_code_subgraph
-  - name: read_file
+  - search_similar_code
+  - get_code_neighbors
+  - get_code_subgraph
+  - read_file
