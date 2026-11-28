@@ -21,7 +21,9 @@ A pergunta que este projeto investiga: **um agente local, com orçamento de temp
 - **Benchmark:** a competição avalia correções de bugs em repositórios Python reais, no estilo SWE-Bench. Cada patch é aplicado ao repositório e os testes de validação são executados: o resultado é `PASS` ou `FAIL`.
 - **Dados públicos de desenvolvimento:** 129 tarefas de quatro repositórios (FastAPI, Rich, Requests e HTTPX), com snapshots, grafos de chamadas/dependências (AST) e embeddings de código.
 - **Ferramentas do harness:** `run_command`, `read_file`, `edit_file`, `write_file`, `submit_patch`, `get_status` e três ferramentas de grafo (`get_code_neighbors`, `search_similar_code`, `get_code_subgraph`).
-- **Restrições:** sem internet no sandbox, um único modelo Gemma 4 suportado por submissão, adaptadores LoRA opcionais e limite global de 12 horas para todas as tarefas.
+- **Restrições:** sem internet no sandbox (Docker com 4 GiB de RAM e 2 vCPUs), um único modelo Gemma 4 por submissão, adaptadores LoRA opcionais, janela de contexto de 32.768 tokens e limite global de 12 horas para todas as tarefas.
+- **Fonte técnica:** o `HARNESS_README.md` oficial (harness `swegemma`), que descreve o ciclo de avaliação em dois contêineres, as ferramentas, os orçamentos e o critério de aprovação.
+- **Prazo final da competição:** 02/12/2026, 23:59 UTC. As regras e o `HARNESS_README.md` oficiais prevalecem sobre qualquer informação deste repositório.
 
 ## 3. Objetivo do projeto
 
@@ -37,7 +39,7 @@ Criei este projeto para:
 - `patch` e `test_patch` são alvos de treino e avaliação local. **O patch de referência nunca entra na entrada do agente durante a avaliação.**
 - O objetivo é passar nos testes oficiais; similaridade com o patch de referência não é métrica.
 - Grafos e embeddings podem ser incompletos: o código-fonte e os testes são a verdade final.
-- `configs/agent.yaml` e `submission/agent.yaml` são pontos de partida, não configurações certificadas. Devem ser comparados com o `sample_submission/` oficial.
+- `configs/agent.yaml` e `submission/agent.yaml` são pontos de partida, não configurações certificadas. Ao cruzá-los com o `HARNESS_README.md`, apareceram divergências (ver [Pendências](#14-limitações-e-próximos-passos)); tudo deve ser conferido com o `sample_submission/` oficial.
 - Qualquer afirmação de ganho de qualidade, tempo ou custo exige medição repetível. Por isso, **não há alegações de ROI**.
 
 ## 5. Baseline
@@ -57,7 +59,7 @@ O agente segue um funil com orçamento controlado:
 
 ```mermaid
 flowchart TD
-  A[Issue e snapshot] --> B[Busca semântica nos embeddings]
+  A[Issue e snapshot] --> B[Similaridade por símbolo nos embeddings]
   B --> C[Expansão no grafo AST/dependências]
   C --> D[Leitura direcionada de código e testes]
   D --> E[Hipótese e patch mínimo]
@@ -68,12 +70,27 @@ flowchart TD
 ```
 
 1. Extrair comportamento, mensagens de erro e nomes de API da issue.
-2. Buscar semanticamente uma vez, com uma consulta focada.
+2. Buscar símbolos parecidos com `search_similar_code`, passando um **nome de símbolo** (ex.: `Class.method`) e não texto livre: no sandbox offline a ferramenta resolve o nome no grafo e calcula similaridade entre os embeddings já existentes (com fallback lexical para várias palavras).
 3. Expandir apenas poucos símbolos relevantes no grafo; nunca despejar o grafo inteiro.
 4. Confirmar no código-fonte (incluindo chamadores e testes próximos).
-5. Editar o mínimo necessário, rodar o menor teste relevante e só então chamar `submit_patch`. Sem correção segura, o agente retorna `NO_PATCH`.
+5. Editar o mínimo necessário, rodar o menor teste relevante (scripts de reprodução em `/tmp`, nunca em `/workspace`) e só então chamar `submit_patch`. Sem correção segura, o agente retorna `NO_PATCH`.
 
 Detalhes em [`docs/architecture/`](docs/architecture/).
+
+### Regras do harness que moldam o desenho
+
+Resumo do `HARNESS_README.md` oficial (descrição do harness; nada disto foi executado localmente):
+
+| Tema | Regra |
+| --- | --- |
+| Hardware de avaliação | 4× NVIDIA L4 (96 GB), vLLM com `max_model_len=32768`; prompt + raciocínio + saída cabem em 32.768 tokens, com compactação automática de contexto |
+| Orçamento por tarefa | Padrão do `inference.py`: 60 min, 100 chamadas de ferramenta, 500 turnos; ajustável em `eval_config.yaml`. O sample oficial usa 1 min, 10 chamadas e 50 turnos |
+| Ferramentas gratuitas | `submit_patch` e `get_status` não consomem o orçamento de chamadas |
+| Limites do sandbox | Sem rede; comando até 300 s; saída até 5.000 caracteres; `read_file` até 150 linhas / 10.000 caracteres |
+| Encerramento | `submit_patch` encerra o laço. Sem chamá-lo, o harness recupera o diff do `/workspace`; até 3 "nudges" de continuação |
+| Extração do patch | `git add -N .` + `git diff`; hunks em testes e arquivos de configuração (`conftest.py`, `pytest.ini`, `pyproject.toml`...) são **removidos** |
+| Critério de aprovação | `pytest` com código 0 e JUnit XML válido, com todos os testes exigidos passando (sem *skip*); nota = tarefas resolvidas / total |
+| Submissão | Menos de 3 GiB; um único modelo; YAML declarativo; adaptadores `.safetensors` com rank ≤ 128; só extensões `.yaml .yml .md .txt .py .json .safetensors` |
 
 ## 7. Decisões técnicas
 
@@ -81,6 +98,8 @@ Detalhes em [`docs/architecture/`](docs/architecture/).
 | --- | --- | --- |
 | Modelo `gemma-4-31b-it-qat-w4a16-ct` como ponto de partida | Maior capacidade entre as variantes suportadas e melhor nota pública entre os modelos listados na competição | Exige mais memória; E4B/E2B ficam como alternativas de menor custo |
 | Temperatura baixa (0,1) | Reduz variabilidade entre execuções | Menos exploração de alternativas |
+| `max_output_tokens` 16384 e `thinking_budget` 4096 (`submission/configs/sampling.yaml`) | Seguem a recomendação do guia contra o corte de chamadas `<\|tool_call>` | Menos contexto livre nos 32.768 tokens; ainda não medido |
+| Limites por tarefa: 15 min, 60 chamadas, 120 turnos, 300 s por comando (`submission/eval_config.yaml`) | Dar espaço para depurar tarefas difíceis sem usar os padrões do harness | Precisa caber nas 12 h globais (ver Pendências); valores ainda não calibrados |
 | Grafo e embeddings como "pistas", não verdade | Podem falhar em comportamento dinâmico | Exige leitura do código antes de editar |
 | Patch mínimo e teste focado | Economiza o orçamento global de 12 h | Um teste estreito verde não garante a suíte oficial |
 | Preparar SFT só com pares públicos issue/patch | Respeita as regras e evita raciocínio inventado | Dados limitados, sem trajetórias do agente |
@@ -111,7 +130,7 @@ benchmarks/          protocolo e relatórios próprios
 
 ## 10. Como executar
 
-**Pré-requisitos:** Python 3.13 ou 3.14. O ambiente local não substitui a imagem do sandbox oficial. Para o grupo `training`, instale também um PyTorch compatível com sua CUDA e GPU; o projeto não escolhe nem baixa um build automaticamente.
+**Pré-requisitos:** Python 3.13 ou 3.14 (ambos na matriz do CI; o desenvolvimento local usa 3.14.7). O sandbox da competição roda Python 3.13 dentro do Docker, independente do Python da sua máquina, e não é substituído pelo ambiente local. Para o grupo `training`, instale também um PyTorch compatível com sua CUDA e GPU; o projeto não escolhe nem baixa um build automaticamente.
 
 ```powershell
 py -3.13 -m venv .venv
@@ -151,7 +170,19 @@ python -m gemma4_agent.training.train_lora --data build/sft_train.jsonl `
   --model "C:\modelos\gemma4" --output adapters/main_lora
 ```
 
-O script grava um adaptador **candidato**. Nomes de módulos LoRA, compatibilidade com QAT e memória necessária precisam ser validados no checkpoint exato; este projeto não afirma que o script já rodou com Gemma 4.
+O script grava um adaptador **candidato**. Nomes de módulos LoRA, compatibilidade com QAT e memória necessária precisam ser validados no checkpoint exato; este projeto não afirma que o script já rodou com Gemma 4. Ao montar a submissão, copie para `submission/adapters/<nome>/` **somente** `adapter_config.json` e `adapter_model.safetensors`: checkpoints e arquivos de tokenizador gravados na mesma pasta podem violar as extensões permitidas.
+
+### Avaliar localmente com o harness oficial
+
+O baseline deve ser medido com o harness da competição, fornecido junto ao dataset (exemplo do `HARNESS_README.md`, ainda não executado aqui):
+
+```bash
+swegemma eval --tasks tasks.jsonl --snapshots-dir snapshots \
+  --submission-dir submission --results-dir results/run_01 \
+  --sandbox docker --max-tool-calls 50 --max-time-minutes 30 --concurrency 2
+```
+
+Cada execução grava `summary.json` (taxa de resolução e detalhe por repositório), `task_results.jsonl`, `patches/`, `test_outputs/` e `traces/`. Use `--task-id` para depurar uma tarefa e mantenha o mesmo conjunto e os mesmos limites entre variantes.
 
 ### Testar, agregar resultados e empacotar
 
@@ -169,6 +200,7 @@ O empacotador exige `agent.yaml` na raiz, valida os `!include` e rejeita symlink
 
 - O ranking público da competição estava muito comprimido (topo em torno de 0,24 em 25/11/2026, calculado sobre cerca de 50% do teste), o que sugere alta variância entre execuções. Por isso, o projeto exige comparações pareadas nas mesmas tarefas.
 - Os testes locais cobrem a auditoria (sem vazar texto de issues ou patches), as métricas (sem inventar nota sem resultado do avaliador) e o empacotamento (caminhos seguros e credenciais).
+- Aritmética de orçamento (estimativa, não medição): o conjunto de teste tem cerca de 120 tarefas e o limite global é de 12 h, o que dá em média ~6 min por tarefa se a execução fosse sequencial. A concorrência real do avaliador não é documentada, e o sample oficial usa orçamentos bem curtos (1 min, 10 chamadas).
 
 Experimentos planejados (todos "não executados"): [`baseline`](docs/experiments/baseline.md), [`ablação de prompt`](docs/experiments/prompt-ablation.md), [`ablação de LoRA`](docs/experiments/lora-ablation.md) e [`taxonomia de falhas`](docs/experiments/failure-taxonomy.md).
 
@@ -195,10 +227,20 @@ O indicador primário é a taxa de tarefas aprovadas; as demais são métricas s
 1. Revisar `HARNESS_README.md`, `sample_submission/` e as regras atuais no Kaggle.
 2. Concluir a verificação de identidade e validar a submissão no formato oficial.
 3. Executar EDA e baseline no conjunto público autorizado.
-4. Validar a integração ADK (incluindo o subagente opcional) contra o sample oficial.
+4. Corrigir as pendências abaixo e validar a integração ADK (incluindo o subagente opcional, ligado como `agent_tool`) contra o sample oficial.
 5. Treinar LoRA somente após provar a qualidade dos exemplos e fixar o baseline.
 6. Rodar as ablações e a avaliação completa; publicar apenas resultados reproduzidos.
 7. Transformar os resultados em relatório ([`papers/paper_v1.md`](papers/paper_v1.md), hoje apenas um esboço).
+
+**Pendências** (resolvidas desde a primeira leitura do `HARNESS_README.md`: formato do `eval_config.yaml`, lista de `tools`, orçamento de saída e raciocínio, consulta por nome de símbolo, scripts em `/tmp` e proteção de testes e configurações). Restam:
+
+| Pendência | Ação |
+| --- | --- |
+| `max_time_minutes: 15` por tarefa × ~120 tarefas excede 12 h se a execução for sequencial (a concorrência do avaliador não é documentada) | Medir o tempo real por tarefa com `swegemma eval` e calibrar o orçamento |
+| `submission/adapters/.gitkeep` pode entrar no ZIP e a extensão não consta na lista permitida; o `train_lora.py` grava checkpoints e tokenizador na pasta do adaptador | Excluir do ZIP, aplicar a lista de extensões no empacotador e copiar só `adapter_config.json` e `adapter_model.safetensors` |
+| Nome da skill com underscore (`repo_navigation`); o padrão das skills ADK costuma usar hífen | Conferir no `sample_submission/` |
+| Árvores duplicadas (raiz e `submission/`) podem divergir; só `submission/` é empacotada | Manter `submission/` como fonte única e remover ou sincronizar as cópias |
+| SFT com pares issue→patch não ensina o uso de ferramentas em vários turnos exigido pelo harness | Medir contra o baseline antes de promover o LoRA |
 
 ## 15. Licença e dados
 
